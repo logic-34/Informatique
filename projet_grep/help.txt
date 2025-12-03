@@ -1,0 +1,17 @@
+./mygrep regex [file] (optional, default : stdin)
+
+Look for any string in [file] matching the format of regex and print them in stdout
+
+Example : ./mygrep "a@.*@b" "mydoc.txt" will print every line in mydoc.txt which start by a and end by b
+
+Format of regex :
+"" -> empty line
+"a" -> line which contains only "a"
+"." -> line which contains any one character
+"[R]?" -> line which matches R or are empty
+"[R]*" -> line which matches R concatened to itself any number of time (including 0)
+"[R]+" -> line which matches R concatened to itself any number of time (at least 1)
+"[R1]|[R2]" -> line which matches R1 or R2
+"[R1]@[R2]" -> line which matches R2 concatened to R1
+
+Type \ in front of an operator to count it as a character

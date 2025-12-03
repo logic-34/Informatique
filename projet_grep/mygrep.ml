@@ -16,6 +16,11 @@ let main () =
     Printf.printf "usage : %s regex [file]\n%!" Sys.argv.(0);
     exit 1
   end;
+  if Sys.argv.(1) = "-h" then begin
+    let help = Stdlib.open_in "help.txt" in
+    process help (Printf.printf "%s\n%!");
+    exit 0
+  end;
   (* Choix du flux d'entrée; entrée standard par défaut *)
   let input =
     if argc = 3 then begin
