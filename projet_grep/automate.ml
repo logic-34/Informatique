@@ -6,13 +6,18 @@ type regexp =
  | Concat of regexp * regexp
  | Kleene of regexp;;
 
-type regexp_int =
+type char_lin = {
+  id : int;
+  lettre : char
+}
+
+type regexp_lin =
  | Emp
  | Eps
- | L of int
- | U of regexp_int * regexp_int
- | C of regexp_int * regexp_int
- | K of regexp_int;;
+ | L of char_lin
+ | U of regexp_lin * regexp_lin
+ | C of regexp_lin * regexp_lin
+ | K of regexp_lin;;
 
 type automate = {
  nb_etats : int;
@@ -25,7 +30,7 @@ type automate_nd = {
  nb_etats : int;
  initiaux : bool array;
  terminaux : bool array;
- transitions : (char list) array array
+ transitions : bool array array
 }
 
 let str_to_regexp str = 
@@ -95,19 +100,22 @@ let rec nb_lettre exp =
   | Concat (e1,e2) -> nb_lettre e1 + nb_lettre e2
   | Kleene (e) -> nb_lettre e
 
-let linear_exp exp corres =
-  let i = ref(0) in
+let linear_exp exp n =
+  let int_to_char = Array.make (n+1) ' ' in
+  let char_to_int = Hashtbl.create 10 in
+  let i = ref(1) in
   let rec aux e =
     match e with
     |Empty -> Emp
     |Epsilon -> Eps
-    |Lettre (a) -> corres.(!i) <- a ;
-                   i := !i + 1;
-                  L (!i)
+    |Lettre (a) -> int_to_char.(!i) <- a;
+                  Hashtbl.add char_to_int a !i;
+                  i := !i + 1;
+                  L ({id = !i; lettre = a})
     |Union (e1,e2) -> U(aux e1, aux e2)
     |Concat (e1,e2) -> C(aux e1, aux e2)
     |Kleene (e) -> K(aux e) in
-  aux exp
+  (aux exp,int_to_char,char_to_int)
 
 let rec calcul_P exp = (* pour une expr non vide et sans vide *)
   match exp with
@@ -143,14 +151,15 @@ let rec calcul_F exp =   (* pour une expr non vide et sans vide *)
   |C (e1,e2) -> produit_cart (calcul_S e1) (calcul_P e2) @ (calcul_F e1) @ (calcul_F e2)
   |K (e) -> produit_cart (calcul_S e) (calcul_P e) @ (calcul_F e)
 
-let automate p s f n corres_lin =
-  let init = Array.make n false in
-  List.iter (fun x -> init.(x)<- true) p;
-  let ter = Array.make n false in
-  List.iter (fun x -> ter.(x)<- true) s;
-
-  let fact = Array.make n (Array.make n []) in
-  List.iter (fun (x,y) -> fact.(x).(y) <- corres_lin.(y) :: fact.(x).(y)) f;
+let automate n exp_lin =
+  let init = Array.make (n+1) false in
+  init.(0) <- true;
+  let ter = Array.make (n+1) false in
+  ter.(0) <- a_eps exp_lin;
+  List.iter (fun x -> ter.(x.id)<- true) (calcul_S exp_lin);
+  let fact = Array.make (n+1) (Array.make (n+1) false) in
+  List.iter (fun (x,y) -> fact.(x.id).(y.id) <- true) (calcul_F exp_lin);
+  List.iter (fun x -> fact.(0).(x.id) <- true) (calcul_P exp_lin);
 
   let a = { nb_etats = n; 
             initiaux = init;
@@ -160,91 +169,102 @@ let automate p s f n corres_lin =
 
 let create_automate exp =
   let n = nb_lettre exp in
-  let corres_lin = Array.make n ' ' in
-  if est_vide exp then begin automate [] [] [] 0 corres_lin;
+  if est_vide exp then begin ((automate 0 Emp),[||],Hashtbl.create 1);
   end
   else begin let e = suppr_eps (suppr_vide exp) in
-           let e_lin = linear_exp e corres_lin in
-           let a = automate (calcul_P e_lin) (calcul_S e_lin) (calcul_F e_lin) n corres_lin in
-  a end ;;
+           let (e_lin, int_to_char, char_to_int) = linear_exp e n in
+           let a = automate n e_lin in
+  (a, int_to_char, char_to_int) end ;;
 
-let determinise a =
-  let a_det = {
-    nb_etats = 1;
-    initial = 0;
-    terminaux = [];
-    transitions = Hashtbl.create 10}
-  in
-  let rec sont_egales l1 l2 =
-    match (l1,l2) with
-    | ([],[]) -> true
-    | (e1::t1,e2::t2) when e1 = e2 -> sont_egales t1 t2
-    | _ -> false
-  in
-  let rec est_final l =
-    match l with
-    | [] -> false
-    | e::t when a.terminaux.(e) -> true
-    | _::t -> est_final t
-  in
-  let l_init a =
-    let rec aux i =
-      if i >= 0 then begin
-        if a.initiaux.(i) then i :: (aux (i+1))
-        else aux (i+1)
-      end else []
-    in aux (a.nb_etats-1)
+let determinise exp =
+  let n = nb_lettre exp in
+  let (a, int_to_char, char_to_int) = create_automate exp in
+
+  let rec est_final b =
+    let res = ref false in
+    for i=0 to (n+1) do
+      if b.(i) && a.terminaux.(i) then res := true
+      done;
+    !res
   in
 
-  let chercher_lettres l_sommet =
-    let vu = ref([]) in
-    let deja_vu char = if List.mem char !vu then None
-      else begin vu := char :: !vu ;
-                Some char
-    end
-    in
-    let rec aux sommet i =
-      if i >= 0 then begin
-        List.filter_map deja_vu a.transitions.(sommet).(i) @ (aux sommet (i+1))
-      end else []
-    in
-    let rec aux2 l_s =
-      match l_s with
-      | [] -> []
-      | e::t -> aux e (a.nb_etats-1) @ (aux2 t)
-    in aux2 l_sommet
-  in
 
-  let a_faire = Stack.create () in
-  let corres_l_sommet_int = ref [l_init a] in
-  Stack.push (l_init a) a_faire;
-  let tab = Hashtbl.create 10 in
-  let term = ref [] in 
-
-  let new_states sigma e =
-    let n = List.length (!corres_l_sommet_int) in
-    corres_l_sommet_int := e :: (!corres_l_sommet_int);
-    if est_final e then term := n :: (!term);
-    let add_transi char =
-      let i = ref (-1) in
-      let appartient l_char =
-        i := (i+1);
-        if List.mem char l_char then Some(!i)
-        else None
+  let chercher_lettres b_sommet =
+    let lettres = ref [] in
+    let aux e =
+      for j=0 to (n+1) do
+        if a.transitions.(e).(j) then begin
+          if not (List.mem (int_to_char.(j)) !lettres) then lettres := int_to_char.(j)::!lettres
+          end
+        done;
       in
-      let n_etat = List.filter_map appartient (Array.to_list a.transitions.(e))
+    for i=0 to (n+1) do
+      if b_sommet.(i) then aux i
+      done;
+    !lettres
     in
-    List.iter add_transi sigma
 
+  let bool_to_int lst =
+    let acc = ref 0 in
+    for i=0 to (n+1) do
+      if lst.(i) then acc := (1 lsl i) + !acc
+      done;
+    !acc
+  in
 
+  let bool_to_lst b =
+    let lst = ref [] in
+    for i=0 to (n+1) do
+      if b.(i) then lst := i::!lst
+      done;
+    !lst
+    in
+
+  let a_traiter = Stack.create () in
+  let deja_vu = Hashtbl.create 10 in
+  let initial = Array.make (n+1) false in
+  initial.(0) <- true;
+  let transitions = Hashtbl.create 10 in
+  let final = ref [] in
+  Stack.push initial a_traiter;
+
+  let delta_etoile etat lettre =
+    let vu = Array.make (n+1) false in
+    let lst_lettre = Hashtbl.find_all char_to_int lettre in
+    let lst_etat = bool_to_lst etat in
+    let rec aux l i_lettre =
+      match l with
+      | [] -> ()
+      | e::t -> if a.transitions.(e).(i_lettre) then vu.(i_lettre) <- true;
+                aux t i_lettre
+    in
+    List.iter (aux lst_etat) lst_lettre;
+    Hashtbl.add transitions (bool_to_int etat, lettre) (bool_to_int vu)
+  in
   
-  let rec construire () =
-    if Stack.is_empty a_faire then ()
-    else begin
-      let e = Stack.pop a_faire in
-      let sigma = chercher_lettres e in
-      new_states sigma e;
-      construire ()
+  let ajouter_sommet sommet =
+    Hashtbl.add deja_vu (bool_to_int sommet) 0;
+    if est_final sommet then final := (bool_to_int sommet) :: (!final);
+    let sigma = chercher_lettres sommet in
+    List.iter (delta_etoile sommet) sigma;
+  in
+
+  let construire () =
+    while not (Stack.is_empty a_traiter) do
+      let sommet = Stack.pop a_traiter in
+      if not (Hashtbl.mem deja_vu (bool_to_int sommet)) then
+        ajouter_sommet sommet
+      done;
+  in
+  construire();
+  
+  {nb_etats = Hashtbl.length deja_vu;
+  initial = 0;
+  terminaux = !final;
+  transitions = transitions}
+;;
+
+
 
 
 
