@@ -4,7 +4,7 @@ type regexp =
  | Lettre of char
  | Union of regexp * regexp
  | Concat of regexp * regexp
- | Kleene of regexp;;
+ | Kleene of regexp
 
 type char_lin = {
   id : int;
@@ -17,7 +17,7 @@ type regexp_lin =
  | L of char_lin
  | U of regexp_lin * regexp_lin
  | C of regexp_lin * regexp_lin
- | K of regexp_lin;;
+ | K of regexp_lin
 
 type automate = {
  nb_etats : int;
@@ -33,8 +33,6 @@ type automate_nd = {
  transitions : bool array array
 }
 
-let str_to_regexp str = 
-  ();;
 
 let rec est_vide expr =
   match expr with
@@ -165,7 +163,7 @@ let automate n exp_lin =
             initiaux = init;
             terminaux = ter;
             transitions = fact } in
-  a;;
+  a
 
 let create_automate exp =
   let n = nb_lettre exp in
@@ -262,16 +260,3 @@ let determinise exp =
   initial = 0;
   terminaux = !final;
   transitions = transitions}
-;;
-
-let r1 = Union(Kleene(Lettre 'a'), Lettre 'b');;
-let r2 = U(K(L {id = 1; lettre = 'a'}), L {id = 2; lettre ='b'});;
-
-(*let a2 = automate 2 r2*)
-
-let a1 = determinise r1;;
-print_int a1.nb_etats;
-
-  
-
-
