@@ -101,16 +101,16 @@ let rec nb_lettre exp =
   | Kleene (e) -> nb_lettre e
 
 let linear_exp exp n =
-  let int_to_char = Array.make (n+1) ' ' in
+  let int_to_char = Array.make (n+1) '_' in
   let char_to_int = Hashtbl.create 10 in
   let i = ref(0) in
   let rec aux e =
     match e with
     |Empty -> Emp
     |Epsilon -> Eps
-    |Lettre (a) -> int_to_char.(!i) <- a;
+    |Lettre (a) -> i := !i + 1;
+                  int_to_char.(!i) <- a;
                   Hashtbl.add char_to_int a !i;
-                  i := !i + 1;
                   (*print_string "id:"; print_int !i ; print_string " lettre:"; print_char a; print_endline("");*)
                   L ({id = !i; lettre = a});
     |Union (e1,e2) -> U(aux e1, aux e2)
@@ -158,10 +158,10 @@ let automate n exp_lin =
   let ter = Array.make (n+1) false in
   ter.(0) <- a_eps exp_lin;
   List.iter (fun x -> ter.(x.id)<- true) (calcul_S exp_lin);
-  let fact = Array.make (n+1) (Array.make (n+1) false) in
+  let fact = Array.make_matrix (n+1) (n+1) false in
   List.iter (fun (x,y) -> fact.(x.id).(y.id) <- true) (calcul_F exp_lin);
   List.iter (fun x -> fact.(0).(x.id) <- true) (calcul_P exp_lin);
-  let a = { nb_etats = n; 
+  let a = { nb_etats = n+1; 
             initiaux = init;
             terminaux = ter;
             transitions = fact } in
@@ -179,7 +179,9 @@ let create_automate exp =
 let determinise exp =
   let n = nb_lettre exp in
   let (a, int_to_char, char_to_int) = create_automate exp in
-
+  Array.iter (fun x -> Printf.printf "%c " x) int_to_char;
+  print_newline ();
+  Array.iter (fun x -> Array.iter (fun x -> Printf.printf "%B " x) x) a.transitions;
   let rec est_final b =
     let res = ref false in
     for i=0 to n do
@@ -192,9 +194,14 @@ let determinise exp =
     let lettres = ref [] in
     let aux e =
       for j=0 to n do
+        print_int e;
+        print_int j;
         if a.transitions.(e).(j) then begin
-          if not (List.mem (int_to_char.(j)) !lettres) then lettres := int_to_char.(j)::!lettres
-          end
+          if not (List.mem (int_to_char.(j)) !lettres) then 
+            print_char int_to_char.(j);
+            lettres := int_to_char.(j)::!lettres;
+            List.iter (fun x -> Printf.printf "%c " x) !lettres;
+            print_newline () end
         done;
       in
     for i=0 to n do
@@ -246,6 +253,8 @@ let determinise exp =
     Hashtbl.add deja_vu (bool_to_int sommet) 0;
     if est_final sommet then final := (bool_to_int sommet) :: (!final);
     let sigma = chercher_lettres sommet in
+    List.iter (fun x -> Printf.printf "%c " x) sigma;
+    print_newline ();
     List.iter (delta_etoile sommet) sigma;
   in
 
@@ -264,13 +273,22 @@ let determinise exp =
   transitions = transitions}
 ;;
 
-let r1 = Union(Kleene(Lettre 'a'), Lettre 'b');;
+let r1 = Lettre 'a';;
 let r2 = U(K(L {id = 1; lettre = 'a'}), L {id = 2; lettre ='b'});;
 
 (*let a2 = automate 2 r2*)
+let bool_to_int lst =
+    let acc = ref 0 in
+    for i=0 to 1 do
+      if lst.(i) then acc := (1 lsl i) + !acc
+      done;
+    !acc;;
 
 let a1 = determinise r1;;
-print_int a1.nb_etats;
+print_int (Hashtbl.find a1.transitions (bool_to_int [|true; false|], 'a'));;
+print_newline ();;
+let (a, int_to_char, char_to_int) = create_automate r1;;
+
 
   
 
