@@ -101,7 +101,7 @@ let rec nb_lettre exp =
 let linear_exp exp n =
   let int_to_char = Array.make (n+1) ' ' in
   let char_to_int = Hashtbl.create 10 in
-  let i = ref(1) in
+  let i = ref(0) in
   let rec aux e =
     match e with
     |Empty -> Emp
@@ -109,7 +109,8 @@ let linear_exp exp n =
     |Lettre (a) -> int_to_char.(!i) <- a;
                   Hashtbl.add char_to_int a !i;
                   i := !i + 1;
-                  L ({id = !i; lettre = a})
+                  (*print_string "id:"; print_int !i ; print_string " lettre:"; print_char a; print_endline("");*)
+                  L ({id = !i; lettre = a});
     |Union (e1,e2) -> U(aux e1, aux e2)
     |Concat (e1,e2) -> C(aux e1, aux e2)
     |Kleene (e) -> K(aux e) in
@@ -158,7 +159,6 @@ let automate n exp_lin =
   let fact = Array.make (n+1) (Array.make (n+1) false) in
   List.iter (fun (x,y) -> fact.(x.id).(y.id) <- true) (calcul_F exp_lin);
   List.iter (fun x -> fact.(0).(x.id) <- true) (calcul_P exp_lin);
-
   let a = { nb_etats = n; 
             initiaux = init;
             terminaux = ter;
@@ -170,9 +170,9 @@ let create_automate exp =
   if est_vide exp then begin ((automate 0 Emp),[||],Hashtbl.create 1);
   end
   else begin let e = suppr_eps (suppr_vide exp) in
-           let (e_lin, int_to_char, char_to_int) = linear_exp e n in
-           let a = automate n e_lin in
-  (a, int_to_char, char_to_int) end 
+            let (e_lin, int_to_char, char_to_int) = linear_exp e n in
+            let a = automate n e_lin in
+  (a, int_to_char, char_to_int) end ;;
 
 let determinise exp =
   let n = nb_lettre exp in
@@ -180,23 +180,22 @@ let determinise exp =
 
   let rec est_final b =
     let res = ref false in
-    for i=0 to (n+1) do
+    for i=0 to n do
       if b.(i) && a.terminaux.(i) then res := true
       done;
     !res
   in
 
-
   let chercher_lettres b_sommet =
     let lettres = ref [] in
     let aux e =
-      for j=0 to (n+1) do
+      for j=0 to n do
         if a.transitions.(e).(j) then begin
           if not (List.mem (int_to_char.(j)) !lettres) then lettres := int_to_char.(j)::!lettres
           end
         done;
       in
-    for i=0 to (n+1) do
+    for i=0 to n do
       if b_sommet.(i) then aux i
       done;
     !lettres
@@ -204,7 +203,7 @@ let determinise exp =
 
   let bool_to_int lst =
     let acc = ref 0 in
-    for i=0 to (n+1) do
+    for i=0 to n do
       if lst.(i) then acc := (1 lsl i) + !acc
       done;
     !acc
@@ -212,7 +211,7 @@ let determinise exp =
 
   let bool_to_lst b =
     let lst = ref [] in
-    for i=0 to (n+1) do
+    for i=0 to n do
       if b.(i) then lst := i::!lst
       done;
     !lst
@@ -237,7 +236,8 @@ let determinise exp =
                 aux t i_lettre
     in
     List.iter (aux lst_etat) lst_lettre;
-    Hashtbl.add transitions (bool_to_int etat, lettre) (bool_to_int vu)
+    Stack.push vu a_traiter;
+    Hashtbl.add transitions (bool_to_int etat, lettre) (bool_to_int vu);
   in
   
   let ajouter_sommet sommet =
