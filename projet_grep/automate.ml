@@ -177,9 +177,6 @@ let create_automate exp =
 let determinise exp =
   let n = nb_lettre exp in
   let (a, int_to_char, char_to_int) = create_automate exp in
-  Array.iter (fun x -> Printf.printf "%c " x) int_to_char;
-  print_newline ();
-  Array.iter (fun x -> Array.iter (fun x -> Printf.printf "%B " x) x) a.transitions;
   let rec est_final b =
     let res = ref false in
     for i=0 to n do
@@ -192,14 +189,9 @@ let determinise exp =
     let lettres = ref [] in
     let aux e =
       for j=0 to n do
-        print_int e;
-        print_int j;
         if a.transitions.(e).(j) then begin
           if not (List.mem (int_to_char.(j)) !lettres) then 
-            print_char int_to_char.(j);
-            lettres := int_to_char.(j)::!lettres;
-            List.iter (fun x -> Printf.printf "%c " x) !lettres;
-            print_newline () end
+            lettres := int_to_char.(j)::!lettres end
         done;
       in
     for i=0 to n do
@@ -251,8 +243,6 @@ let determinise exp =
     Hashtbl.add deja_vu (bool_to_int sommet) 0;
     if est_final sommet then final := (bool_to_int sommet) :: (!final);
     let sigma = chercher_lettres sommet in
-    List.iter (fun x -> Printf.printf "%c " x) sigma;
-    print_newline ();
     List.iter (delta_etoile sommet) sigma;
   in
 
